@@ -1,14 +1,14 @@
 # envconfig
 
-[![Build Status](https://travis-ci.org/kelseyhightower/envconfig.png)](https://travis-ci.org/kelseyhightower/envconfig)
+[![wercker status](https://app.wercker.com/status/56351e2f69f75481e6da3578f0278a8a/m "wercker status")](https://app.wercker.com/project/bykey/56351e2f69f75481e6da3578f0278a8a)
 
 ```Go
-import "github.com/kelseyhightower/envconfig"
+import "github.com/TeamTrumpet/envconfig"
 ```
 
 ## Documentation
 
-See [godoc](http://godoc.org/github.com/kelseyhightower/envconfig)
+See [godoc](http://godoc.org/github.com/TeamTrumpet/envconfig)
 
 ## Usage
 
@@ -30,7 +30,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/kelseyhightower/envconfig"
+    "github.com/TeamTrumpet/envconfig"
 )
 
 type Specification struct {
