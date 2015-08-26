@@ -17,11 +17,15 @@ build:
     # at the right place in the workspace tree
     - setup-go-workspace
 
-    # Gets the dependencies
-    - script:
-        name: go get
-        code: |
-          go get
+    # Lints the current project
+    - golint
+
+    # This project has no external dependencies, disabled.
+    # # Gets the dependencies
+    # - script:
+    #     name: go get
+    #     code: |
+    #       go get
 
     # Build the project
     - script:
