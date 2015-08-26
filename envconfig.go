@@ -15,6 +15,8 @@ import (
 
 // ErrInvalidSpecification indicates that a specification is of the wrong type.
 var ErrInvalidSpecification = errors.New("invalid specification must be a struct")
+
+// ErrRequiredKey indicates that a value is required but is not available.
 var ErrRequiredKey = errors.New("required key missing value")
 
 // A ParseError occurs when an environment variable cannot be converted to
@@ -30,6 +32,8 @@ func (e *ParseError) Error() string {
 	return fmt.Sprintf("envconfig.Process: assigning %[1]s to %[2]s: converting '%[3]s' to type %[4]s", e.KeyName, e.FieldName, e.Value, e.TypeName)
 }
 
+// Process parses the environment and loads the contents into the matching
+// elements inside the provided spec.
 func Process(prefix string, spec interface{}) error {
 	s := reflect.ValueOf(spec).Elem()
 	if s.Kind() != reflect.Struct {
@@ -57,7 +61,7 @@ func Process(prefix string, spec interface{}) error {
 			}
 
 			req := typeOfSpec.Field(i).Tag.Get("required")
-			if value == "" {
+			if value == "" && f.Kind() != reflect.Struct {
 				if req == "true" {
 					return ErrRequiredKey
 				}
@@ -78,6 +82,23 @@ func Process(prefix string, spec interface{}) error {
 					}
 				}
 				f.SetInt(intValue)
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint64:
+				uintValue, err := strconv.ParseUint(value, 0, f.Type().Bits())
+				if err != nil {
+					return &ParseError{
+						KeyName:   key,
+						FieldName: fieldName,
+						TypeName:  f.Type().String(),
+						Value:     value,
+					}
+				}
+				f.SetUint(uintValue)
+			case reflect.Struct:
+				structPtr := reflect.New(f.Type()).Interface()
+				if err := Process(key, structPtr); err != nil {
+					return err
+				}
+				f.Set(reflect.ValueOf(structPtr).Elem())
 			case reflect.Bool:
 				boolValue, err := strconv.ParseBool(value)
 				if err != nil {
