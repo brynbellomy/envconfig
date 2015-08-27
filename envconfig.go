@@ -7,6 +7,7 @@ package envconfig
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"reflect"
 	"strconv"
@@ -15,9 +16,6 @@ import (
 
 // ErrInvalidSpecification indicates that a specification is of the wrong type.
 var ErrInvalidSpecification = errors.New("invalid specification must be a struct")
-
-// ErrRequiredKey indicates that a value is required but is not available.
-var ErrRequiredKey = errors.New("required key missing value")
 
 // A ParseError occurs when an environment variable cannot be converted to
 // the type required by a struct field during assignment.
@@ -32,6 +30,16 @@ func (e *ParseError) Error() string {
 	return fmt.Sprintf("envconfig.Process: assigning %[1]s to %[2]s: converting '%[3]s' to type %[4]s", e.KeyName, e.FieldName, e.Value, e.TypeName)
 }
 
+// A RequiredError occurs when a required environment variable cannot be found
+// on the environment.
+type RequiredError struct {
+	KeyName string
+}
+
+func (e *RequiredError) Error() string {
+	return fmt.Sprintf("envconfig.Process: required key %[1]s not found", e.KeyName)
+}
+
 // Process parses the environment and loads the contents into the matching
 // elements inside the provided spec.
 func Process(prefix string, spec interface{}) error {
@@ -43,17 +51,12 @@ func Process(prefix string, spec interface{}) error {
 	for i := 0; i < s.NumField(); i++ {
 		f := s.Field(i)
 		if f.CanSet() {
-			alt := typeOfSpec.Field(i).Tag.Get("envconfig")
-			fieldName := typeOfSpec.Field(i).Name
-			if alt != "" {
-				fieldName = alt
+			fieldName := typeOfSpec.Field(i).Tag.Get("envconfig")
+			if fieldName == "" {
+				continue
 			}
 			key := strings.ToUpper(fmt.Sprintf("%s_%s", prefix, fieldName))
 			value := os.Getenv(key)
-			if value == "" && alt != "" {
-				key := strings.ToUpper(fieldName)
-				value = os.Getenv(key)
-			}
 
 			def := typeOfSpec.Field(i).Tag.Get("default")
 			if def != "" && value == "" {
@@ -63,7 +66,9 @@ func Process(prefix string, spec interface{}) error {
 			req := typeOfSpec.Field(i).Tag.Get("required")
 			if value == "" && f.Kind() != reflect.Struct {
 				if req == "true" {
-					return ErrRequiredKey
+					return &RequiredError{
+						KeyName: key,
+					}
 				}
 				continue
 			}
@@ -121,6 +126,14 @@ func Process(prefix string, spec interface{}) error {
 					}
 				}
 				f.SetFloat(floatValue)
+			case reflect.Ptr:
+				if t := f.Type().Elem(); t.Kind() == reflect.Struct && t.PkgPath() == "net/url" && t.Name() == "URL" {
+					v, err := url.Parse(value)
+					if err == nil {
+						f.Set(reflect.ValueOf(v))
+					}
+				}
+
 			}
 		}
 	}
