@@ -66,7 +66,10 @@ func Process(prefix string, spec interface{}) error {
 			if fieldName == "" {
 				continue
 			}
-			key := strings.ToUpper(fmt.Sprintf("%s_%s", prefix, fieldName))
+			key := fieldName
+			if prefix != "" {
+				key = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, fieldName))
+			}
 			value := os.Getenv(key)
 
 			def := typeOfSpec.Field(i).Tag.Get("default")
