@@ -40,6 +40,16 @@ func (e *RequiredError) Error() string {
 	return fmt.Sprintf("envconfig.Process: required key %[1]s not found", e.KeyName)
 }
 
+type MultiError []error
+
+func (e MultiError) Error() string {
+	str := "[\n"
+	for _, err := range []error(e) {
+		str += " - " + err.Error() + "\n"
+	}
+	return str + "]"
+}
+
 // Process parses the environment and loads the contents into the matching
 // elements inside the provided spec.
 func Process(prefix string, spec interface{}) error {
@@ -47,6 +57,7 @@ func Process(prefix string, spec interface{}) error {
 	if s.Kind() != reflect.Struct {
 		return ErrInvalidSpecification
 	}
+	errors := make([]error, 0)
 	typeOfSpec := s.Type()
 	for i := 0; i < s.NumField(); i++ {
 		f := s.Field(i)
@@ -66,9 +77,9 @@ func Process(prefix string, spec interface{}) error {
 			req := typeOfSpec.Field(i).Tag.Get("required")
 			if value == "" && f.Kind() != reflect.Struct {
 				if req == "true" {
-					return &RequiredError{
+					errors = append(errors, &RequiredError{
 						KeyName: key,
-					}
+					})
 				}
 				continue
 			}
@@ -79,23 +90,25 @@ func Process(prefix string, spec interface{}) error {
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				intValue, err := strconv.ParseInt(value, 0, f.Type().Bits())
 				if err != nil {
-					return &ParseError{
+					errors = append(errors, &ParseError{
 						KeyName:   key,
 						FieldName: fieldName,
 						TypeName:  f.Type().String(),
 						Value:     value,
-					}
+					})
+					continue
 				}
 				f.SetInt(intValue)
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint64:
 				uintValue, err := strconv.ParseUint(value, 0, f.Type().Bits())
 				if err != nil {
-					return &ParseError{
+					errors = append(errors, &ParseError{
 						KeyName:   key,
 						FieldName: fieldName,
 						TypeName:  f.Type().String(),
 						Value:     value,
-					}
+					})
+					continue
 				}
 				f.SetUint(uintValue)
 			case reflect.Struct:
@@ -107,23 +120,25 @@ func Process(prefix string, spec interface{}) error {
 			case reflect.Bool:
 				boolValue, err := strconv.ParseBool(value)
 				if err != nil {
-					return &ParseError{
+					errors = append(errors, &ParseError{
 						KeyName:   key,
 						FieldName: fieldName,
 						TypeName:  f.Type().String(),
 						Value:     value,
-					}
+					})
+					continue
 				}
 				f.SetBool(boolValue)
 			case reflect.Float32, reflect.Float64:
 				floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
 				if err != nil {
-					return &ParseError{
+					errors = append(errors, &ParseError{
 						KeyName:   key,
 						FieldName: fieldName,
 						TypeName:  f.Type().String(),
 						Value:     value,
-					}
+					})
+					continue
 				}
 				f.SetFloat(floatValue)
 			case reflect.Ptr:
@@ -136,6 +151,10 @@ func Process(prefix string, spec interface{}) error {
 
 			}
 		}
+	}
+
+	if len(errors) > 0 {
+		return MultiError(errors)
 	}
 	return nil
 }
